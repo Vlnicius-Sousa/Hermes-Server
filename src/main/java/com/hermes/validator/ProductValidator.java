@@ -3,7 +3,11 @@ package com.hermes.validator;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -14,13 +18,29 @@ import com.hermes.models.Product;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.exc.JsonNodeException;
 import tools.jackson.databind.node.ObjectNode;
 
 @Service
 public class ProductValidator {
 	
-	public ProductValidator() {}
+	private static final Set<String> UNIDADES_INTEIRAS = new HashSet<>(Arrays.asList(
+		"UNID", "CX", "CX2", "CX3", "CX5", "CX10", "CX15", "CX20", "CX25",
+		"CX50", "CX100", "PC", "PACOTE", "DUZIA", "CENTO", "MILHEI", "KIT", "CJ", "FD",
+		"RESMA", "ROLO", "GF", "LATA", "FRASCO", "AMPOLA", "BISNAG", "BALDE", "VIDRO",
+		"VASIL", "TAMBOR", "PALETE"
+	));
+
+	private static final Set<String> UNIDADES_FRACIONADAS = new HashSet<>(Arrays.asList(
+		"KG", "G", "TON", "L", "ML", "M", "M2", "M3", "CM", "CM2"
+	));
+
+	private static final String MSG_UNIDADES_VALIDAS = String.join(", ", UNIDADES_INTEIRAS);
+
+	private final ObjectMapper mapper;
+
+	public ProductValidator(ObjectMapper mapper) {
+		this.mapper = mapper;
+	}
 	
 	public Product validate(String nome, List<Atributo> atributos) {
 		StringBuffer erros = new StringBuffer();
@@ -33,8 +53,6 @@ public class ProductValidator {
 		}
 		
 		produto.setName(nome);
-		
-		ObjectMapper mapper = new ObjectMapper();
 		
 		atributos.forEach(atributo -> {
 			String errorString = "Error: ";
@@ -97,7 +115,8 @@ public class ProductValidator {
 					if(Character.isDigit(gtin.charAt(k))) {
 						continue;
 					} else {
-						soNumero = !soNumero;
+						soNumero = false;
+						break;
 					}
 				}
 				
@@ -132,25 +151,28 @@ public class ProductValidator {
 					erros.append(errorString + "Vazio.\n");
 				}
 				
-				String pesoJson = mapper.writeValueAsString(atributo.getValor());
-				JsonNode node = mapper.readTree(pesoJson);
-				
-				Double massa = node.get("massa").asDouble();
-				String unidadePeso = node.get("unidade").asString();
+				try {
+					JsonNode node = mapper.valueToTree(atributo.getValor());
+					
+					double massa = node.path("massa").asDouble();
+					String unidadePeso = node.path("unidade").asString();
+							
+					
+					if(unidadePeso != null && (unidadePeso.equalsIgnoreCase("G") || unidadePeso.equalsIgnoreCase("KG") || unidadePeso.equalsIgnoreCase("TON")) && massa > 0.0) {
+						ObjectNode pesoNode = mapper.createObjectNode();
 						
-				
-				if((unidadePeso.toString().equals("G") || unidadePeso.toString().equals("KG") || unidadePeso.toString().equals("TON")) && massa > 0.0) {
-					ObjectNode pesoNode = mapper.createObjectNode();
-					
-					pesoNode.put("massa", massa);
-					pesoNode.put("unidade", unidadePeso);
-					
-					Object obj = mapper.convertValue(pesoNode, Object.class);
-					
-					atributo.setValor(obj);
-					produto.getAtributos().add(atributo);
-				} else {					
-					erros.append(errorString + "Formato inválido.\n");
+						pesoNode.put("massa", massa);
+						pesoNode.put("unidade", unidadePeso);
+						
+						Object obj = mapper.convertValue(pesoNode, Object.class);
+						
+						atributo.setValor(obj);
+						produto.getAtributos().add(atributo);
+					} else {					
+						erros.append(errorString + "Formato inválido.\n");
+					}
+				} catch (Exception e) {
+					erros.append(errorString + "Erro no processamento dos dados de peso.\n");
 				}
 				break;
 			case "quantidade":
@@ -159,81 +181,29 @@ public class ProductValidator {
 					if (quantidadeStr == null || quantidadeStr.isBlank()) {
 						erros.append(errorString + "Vazio.\n");
 					}
-					String quantidadeJson = mapper.writeValueAsString(atributo.getValor());	
-					JsonNode quantidadeNode= mapper.readTree(quantidadeJson);
-					/*String quantidadeString = quantidadeNode.asString();
 					
-					if(quantidadeString == null || quantidadeString.isBlank()) {
-						erros.append(errorString + "Vazio.");
-					}
-					StringBuffer quantidade = new StringBuffer();
-					StringBuffer unidade = new StringBuffer();
-					boolean wasBreaked = false;
-					
-					for(int l = 0; l < quantidadeString.length(); l++) {
-						char C = quantidadeString.charAt(l);
-						if(Character.isDigit(C) && !(unidade.isEmpty())) {
-							unidade.append(C);
-						} else if(Character.isDigit(C)){
-							quantidade.append(C);
-						} else if(Character.isAlphabetic(C)){
-							if(Character.isLowerCase(C)) {
-								C = Character.toUpperCase(C);
-							}
-							unidade.append(C);
-						} else if(C == ',') {
-							quantidade.append('.');
-						} else {
-							wasBreaked = true;
-							break;
-						}
-					}
-					*/
-					String[] unis = {"UNID", "CX", "CX2", "CX3","CX5", "CX10", "CX15", "CX20", "CX25",
-					"CX50", "CX100", "PC", "PACOTE", "DUZIA", "CENTO", "MILHEI", "KIT", "CJ", "FD"
-					, "RESMA", "ROLO", "GF", "LATA", "FRASCO", "AMPOLA", "BISNAG", "BALDE", "VIDRO"
-					, "VASIL", "TAMBOR", "PALETE"};
-					
-					String[] fracs = {"KG", "G", "TON", "L", "ML", "M", "M2", "M3", "CM", "CM2"};
-					
-					ArrayList<String> unidadesArrayList = new ArrayList<String>(Arrays.asList(unis));
-					ArrayList<String> fracinadosArrayList = new ArrayList<String>(Arrays.asList(fracs));
-					
-					
-					String uni = quantidadeNode.get("unidade").asString(); /*unidade.toString();*/
-					String quant = quantidadeNode.get("quantidade").asString() ; /* quantidade.toString();*/
-					if(unidadesArrayList.contains(uni) /* && !wasBreaked */ && !(quant.contains("."))) {
+					JsonNode quantidadeNode = mapper.valueToTree(atributo.getValor());
 
-						ObjectNode objectNode = mapper.createObjectNode();
-						
-						objectNode.put("quantidade", Integer.valueOf(quant));
-						objectNode.put("unidade", uni);
-						
-						Object obj = mapper.convertValue(objectNode, Object.class);
-						
-						atributo.setValor(obj);
-						
-						produto.getAtributos().add(atributo);
-					} else if(fracinadosArrayList.contains(uni) /* && !wasBreaked */) {
-						
-						ObjectNode objectNode = mapper.createObjectNode();
-						
+					String uni = quantidadeNode.path("unidade").asString().toUpperCase();
+					String quant = quantidadeNode.path("quantidade").asString();
+
+					ObjectNode objectNode = mapper.createObjectNode();
+
+					if(!UNIDADES_INTEIRAS.contains(uni) && !UNIDADES_FRACIONADAS.contains(uni)){
+						erros.append(errorString + "Unidade inválida, inserir tal como: " + MSG_UNIDADES_VALIDAS + ".\n");
+						break;
+					} else if(UNIDADES_INTEIRAS.contains(uni) && !quant.contains(".") && !quant.contains(",")){
+						objectNode.put("quantidade", Long.valueOf(quant));
+					} else if (UNIDADES_FRACIONADAS.contains(uni)){
 						objectNode.put("quantidade", new BigDecimal(quant));
-						objectNode.put("unidade", uni);
-						
-						Object obj = mapper.convertValue(objectNode, Object.class);
-						
-						atributo.setValor(obj);
-						
-						produto.getAtributos().add(atributo);
 					} else {
-						StringBuffer msg = new StringBuffer();
-						unidadesArrayList.forEach(U -> {
-							msg.append(U + ", ");
-						});
-						
-						erros.append(errorString + "Unidade inválida, inserir tal como: " + msg.toString() + ".\n");
-					}	
+						erros.append(errorString + "Quantidade numérica não suportada para o tipo de unidade inserida.\n");
+					}
+					
+					objectNode.put("unidade", uni);
+					Object obj = mapper.convertValue(objectNode, Object.class);	
+					atributo.setValor(obj);	
+					produto.getAtributos().add(atributo);	
 				break;
 			default:
 				String textoStr = atributo.getValor().toString();

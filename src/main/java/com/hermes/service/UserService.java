@@ -109,16 +109,9 @@ public class UserService {
 	}
 	
 	public String updatePassword(UpdateUserRequest updateRequest) {
-		
-			User userAntigo = VerifyUserCredentials(updateRequest.email(), updateRequest.password());
-			
-			HashSet<String> roles = (HashSet<String>) AuthorityUtils.authorityListToSet(userAntigo.getAuthorities());
-			
-			User novoUser = new User(userAntigo.getid(), userAntigo.getUsername(), passwordEncoder.encode(updateRequest.newPassword())
-									, userAntigo.getEmail(), roles);
-			
-			userRepository.deleteByEmail(updateRequest.email());
-			userRepository.save(novoUser);
+			User user = VerifyUserCredentials(updateRequest.email(), updateRequest.password());
+			user.setPassword(passwordEncoder.encode(updateRequest.newPassword()));
+			userRepository.save(user);
 			
 			return "troca feita";
 	}

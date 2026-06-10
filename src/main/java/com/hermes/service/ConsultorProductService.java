@@ -15,17 +15,19 @@ import com.hermes.models.Atributo;
 import com.hermes.models.Product;
 import com.hermes.repository.consultor.ConsultorProductRepository;
 
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-
 
 
 @Service
 public class ConsultorProductService {
 	private final ConsultorProductRepository consultorProductRepository;
+	private final ObjectMapper mapper;
 
-	public ConsultorProductService(ConsultorProductRepository repo) {
+	public ConsultorProductService(ConsultorProductRepository repo, ObjectMapper mapper) {
 		this.consultorProductRepository = repo;
+		this.mapper = mapper;
 	}
 	
 	public List<Product> getAllProducts(){
@@ -57,23 +59,10 @@ public class ConsultorProductService {
 						if(valor instanceof String || valor instanceof Number || valor instanceof Boolean) {
 							return new ProductAtributoResponse(atributo.getNome(), atributo.getTipo(), atributo.getValor());
 						} else {
-							ObjectMapper mapper = new ObjectMapper();
-							String objstr = mapper.writeValueAsString(atributo.getValor());
 							
-							JsonNode obj = mapper.readTree(objstr);
-							
-							HashMap<String, Object> objAtrib = new HashMap<String, Object>();
-
-							obj.forEachEntry((key, value) -> {
-								if(value.isDouble()) {
-									objAtrib.put(key, value.asDouble());
-								} else if (value.isString()) {
-									objAtrib.put(key, value.stringValue());
-								} else if(value.isInt()) {
-									objAtrib.put(key, value.asInt());
-								}
-							});
-							
+							HashMap<String, Object> objAtrib = mapper.convertValue(atributo.getValor(), 
+								new TypeReference<HashMap<String, Object>>() {});
+								
 							return new ProductAtributoResponse(atributo.getNome(), atributo.getTipo(), objAtrib);
 						}
 					}).toList());

@@ -34,7 +34,7 @@ public class AtributosController {
 		
 		List<Atributos> atributos = atributosService.obterTodosAtributos();
 		
-		ArrayList<AtributosResponse> response = new ArrayList<AtributosResponse>();
+		List<AtributosResponse> response = new ArrayList<>();
 		
 		atributos.forEach(atributo -> {
 				response.add(new AtributosResponse(atributo.getNome(), atributo.getTipo()));
@@ -58,7 +58,7 @@ public class AtributosController {
 	public ResponseEntity<List<AtributosResponse>> criarAtributosLote(@Valid @RequestBody List<AtributosRequest> request){
 		List<Atributos> atributos = atributosService.criarAtributos(request);
 
-		ArrayList<AtributosResponse> response = new ArrayList<AtributosResponse>();
+		List<AtributosResponse> response = new ArrayList<>();
 		
 		atributos.forEach(atributo -> {
 			response.add(new AtributosResponse(atributo.getNome(), atributo.getTipo()));
